@@ -105,7 +105,7 @@ public class RandomEffectMod implements ModInitializer {
             player.addStatusEffect(new StatusEffectInstance(entry, 90 * 20, 0, false, true));
         }
 
-        player.sendMessage(Text.literal("§c어쩌다 이 지경까지.."), true);
+        player.sendMessage(Text.literal("§c어쩌다 이 지경까지.."), false);
 
         // 발동 시각 기록
         easterEggTime.put(player.getUuid(), System.currentTimeMillis());
