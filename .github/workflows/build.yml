@@ -19,13 +19,12 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Gradle Wrapper 생성
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.8'
-
-      - name: gradlew 생성
-        run: gradle wrapper
+      - name: Gradle Wrapper 다운로드
+        run: |
+          curl -L https://services.gradle.org/distributions/gradle-8.10-bin.zip -o gradle.zip
+          unzip -q gradle.zip
+          ./gradle-8.10/bin/gradle wrapper --gradle-version 8.10
+          chmod +x gradlew
 
       - name: 빌드
         run: ./gradlew build
