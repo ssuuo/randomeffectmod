@@ -19,11 +19,12 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Gradle Wrapper 다운로드
+      - name: Fabric Example Mod에서 gradlew 가져오기
         run: |
-          curl -L https://services.gradle.org/distributions/gradle-8.6-bin.zip -o gradle.zip
-          unzip -q gradle.zip
-          ./gradle-8.6/bin/gradle wrapper --gradle-version 8.6
+          curl -L https://github.com/FabricMC/fabric-example-mod/archive/refs/heads/1.21.zip -o example.zip
+          unzip -q example.zip
+          cp fabric-example-mod-1.21/gradlew ./gradlew
+          cp -r fabric-example-mod-1.21/gradle ./gradle
           chmod +x gradlew
 
       - name: 빌드
