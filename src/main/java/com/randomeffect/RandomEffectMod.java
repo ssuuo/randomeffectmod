@@ -10,6 +10,8 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,93 +19,107 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 public class RandomEffectMod implements ModInitializer {
 
     public static final String MOD_ID = "randomeffect";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     private static final Random RANDOM = new Random();
-
-    // 중복 등록 방지 플래그
     private static boolean initialized = false;
+    private static final Map<UUID, Long> effectStartTime = new HashMap<>();
 
     @Override
     public void onInitialize() {
-        if (initialized) {
-            LOGGER.warn("RandomEffect Mod 이미 초기화됨, 중복 등록 방지");
-            return;
-        }
+        if (initialized) return;
         initialized = true;
 
         LOGGER.info("RandomEffect Mod 초기화 완료!");
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(RandomEffectMod::onEntityDamage);
+
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
+            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                if (!player.hasStatusEffects()) {
+                    effectStartTime.remove(player.getUuid());
+                    continue;
+                }
+
+                Long startTime = effectStartTime.get(player.getUuid());
+                if (startTime == null) {
+                    effectStartTime.put(player.getUuid(), System.currentTimeMillis());
+                    continue;
+                }
+
+                long elapsed = System.currentTimeMillis() - startTime;
+                if (elapsed >= 60_000) {
+                    player.damage(server.getOverworld(), player.getDamageSources().magic(), Float.MAX_VALUE);
+                    effectStartTime.remove(player.getUuid());
+                    player.sendMessage(Text.literal("§c1분 버티지 못했다.."), false);
+                }
+            }
+        });
     }
 
     private static boolean onEntityDamage(LivingEntity entity, DamageSource source, float amount) {
-        // 플레이어만 적용
-        if (!(entity instanceof PlayerEntity player)) {
+        if (!(entity instanceof ServerPlayerEntity player)) return true;
+        if (amount <= 0) return true;
+        if (isBlocking(player)) return true;
+
+        // 1% 확률 이스터에그
+        if (RANDOM.nextInt(100) == 0) {
+            triggerEasterEgg(player);
             return true;
         }
 
-        // 실제 데미지가 없으면 무시 (방패로 완전히 막힌 경우 amount == 0)
-        if (amount <= 0) {
-            return true;
+        // 현재 걸린 효과 제외하고 후보 목록 만들기
+        List<RegistryEntry<StatusEffect>> candidates = new ArrayList<>();
+        for (RegistryEntry<StatusEffect> entry : Registries.STATUS_EFFECT.getIndexedEntries()) {
+            if (!player.hasStatusEffect(entry)) {
+                candidates.add(entry);
+            }
         }
 
-        // 방패로 막는 중인지 확인
-        if (isBlocking(player)) {
-            return true;
-        }
+        // 후보가 없으면 (모든 효과가 이미 걸린 경우) 무시
+        if (candidates.isEmpty()) return true;
 
-        // 모든 상태효과 목록 수집
+        RegistryEntry<StatusEffect> randomEntry = candidates.get(RANDOM.nextInt(candidates.size()));
+
+        int[] durations = {5 * 20, 10 * 20, 15 * 20};
+        int durationTicks = durations[RANDOM.nextInt(3)];
+        int amplifier = getWeightedAmplifier();
+
+        player.addStatusEffect(new StatusEffectInstance(randomEntry, durationTicks, amplifier, false, true));
+        effectStartTime.putIfAbsent(player.getUuid(), System.currentTimeMillis());
+
+        return true;
+    }
+
+    private static void triggerEasterEgg(ServerPlayerEntity player) {
         List<RegistryEntry<StatusEffect>> effects = new ArrayList<>();
         for (RegistryEntry<StatusEffect> entry : Registries.STATUS_EFFECT.getIndexedEntries()) {
             effects.add(entry);
         }
 
-        if (effects.isEmpty()) {
-            return true;
+        for (RegistryEntry<StatusEffect> entry : effects) {
+            player.addStatusEffect(new StatusEffectInstance(entry, 90 * 20, 0, false, true));
         }
 
-        // 랜덤 상태효과 선택
-        RegistryEntry<StatusEffect> randomEntry = effects.get(RANDOM.nextInt(effects.size()));
-        StatusEffect randomEffect = randomEntry.value();
-
-        // 랜덤 지속시간: 5초 / 10초 / 15초 균등 1/3
-        int[] durations = {5 * 20, 10 * 20, 15 * 20};
-        int durationTicks = durations[RANDOM.nextInt(3)];
-
-        // 강도 확률: 80% → 0 (레벨1), 15% → 1 (레벨2), 5% → 2 (레벨3)
-        int amplifier = getWeightedAmplifier();
-
-        StatusEffectInstance instance = new StatusEffectInstance(
-                randomEntry,
-                durationTicks,
-                amplifier,
-                false,
-                true
+        player.getServer().getPlayerManager().broadcast(
+            Text.literal("§e" + player.getName().getString() + "§r: §c어쩌다 이 지경까지.."),
+            false
         );
 
-        player.addStatusEffect(instance);
-
-        LOGGER.debug("플레이어 {}에게 효과 {} (레벨 {}, {}틱) 적용됨",
-                player.getName().getString(),
-                Registries.STATUS_EFFECT.getId(randomEffect),
-                amplifier + 1,
-                durationTicks
-        );
-
-        return true;
+        effectStartTime.put(player.getUuid(), System.currentTimeMillis());
     }
 
-    // 방패를 들고 막는 중인지 확인
     private static boolean isBlocking(PlayerEntity player) {
         return player.isBlocking() &&
                (player.getStackInHand(Hand.MAIN_HAND).isOf(Items.SHIELD) ||
                 player.getStackInHand(Hand.OFF_HAND).isOf(Items.SHIELD));
     }
 
-    // 강도 가중치 랜덤: 80% → 0, 15% → 1, 5% → 2
     private static int getWeightedAmplifier() {
         int roll = RANDOM.nextInt(100);
         if (roll < 80) return 0;
