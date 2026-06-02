@@ -36,7 +36,6 @@ public class RandomEffectMod implements ModInitializer {
         LOGGER.info("RandomEffect Mod 초기화 완료!");
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(RandomEffectMod::onEntityDamage);
 
-        // 매 틱마다 30초 경과 체크
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
             for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
                 Long startTime = easterEggTime.get(player.getUuid());
@@ -46,11 +45,9 @@ public class RandomEffectMod implements ModInitializer {
                 if (elapsed >= 30_000) {
                     easterEggTime.remove(player.getUuid());
 
-                    // 걸린 효과 목록 수집
                     Collection<StatusEffectInstance> activeEffects = player.getStatusEffects();
                     if (activeEffects.size() <= 1) continue;
 
-                    // 하나만 남기고 나머지 제거
                     List<RegistryEntry<StatusEffect>> toRemove = new ArrayList<>();
                     boolean kept = false;
                     for (StatusEffectInstance instance : activeEffects) {
@@ -73,13 +70,15 @@ public class RandomEffectMod implements ModInitializer {
         if (amount <= 0) return true;
         if (isBlocking(player)) return true;
 
+        // 이스터에그 진행 중이면 아무것도 안 함
+        if (easterEggTime.containsKey(player.getUuid())) return true;
+
         // 1% 확률 이스터에그
         if (RANDOM.nextInt(100) == 0) {
             triggerEasterEgg(player);
             return true;
         }
 
-        // 현재 걸린 효과 제외하고 후보 목록 만들기
         List<RegistryEntry<StatusEffect>> candidates = new ArrayList<>();
         for (RegistryEntry<StatusEffect> entry : Registries.STATUS_EFFECT.getIndexedEntries()) {
             if (!player.hasStatusEffect(entry)) {
@@ -106,8 +105,6 @@ public class RandomEffectMod implements ModInitializer {
         }
 
         player.sendMessage(Text.literal("§c어쩌다 이 지경까지.."), false);
-
-        // 발동 시각 기록
         easterEggTime.put(player.getUuid(), System.currentTimeMillis());
     }
 
