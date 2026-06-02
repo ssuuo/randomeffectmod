@@ -1,0 +1,38 @@
+name: Build Mod
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: JDK 21 설치
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Gradle Wrapper 생성
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.8'
+
+      - name: gradlew 생성
+        run: gradle wrapper
+
+      - name: 빌드
+        run: ./gradlew build
+
+      - name: JAR 파일 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: randomeffect-mod
+          path: build/libs/randomeffect-*.jar
+          if-no-files-found: error
