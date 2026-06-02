@@ -19,9 +19,6 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 
 public class RandomEffectMod implements ModInitializer {
 
@@ -29,7 +26,6 @@ public class RandomEffectMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     private static final Random RANDOM = new Random();
     private static boolean initialized = false;
-    private static final Map<UUID, Long> effectStartTime = new HashMap<>();
 
     @Override
     public void onInitialize() {
@@ -38,28 +34,6 @@ public class RandomEffectMod implements ModInitializer {
 
         LOGGER.info("RandomEffect Mod 초기화 완료!");
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(RandomEffectMod::onEntityDamage);
-
-        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
-            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                if (!player.hasStatusEffects()) {
-                    effectStartTime.remove(player.getUuid());
-                    continue;
-                }
-
-                Long startTime = effectStartTime.get(player.getUuid());
-                if (startTime == null) {
-                    effectStartTime.put(player.getUuid(), System.currentTimeMillis());
-                    continue;
-                }
-
-                long elapsed = System.currentTimeMillis() - startTime;
-                if (elapsed >= 60_000) {
-                    player.damage(server.getOverworld(), player.getDamageSources().magic(), Float.MAX_VALUE);
-                    effectStartTime.remove(player.getUuid());
-                    player.sendMessage(Text.literal("§c1분 버티지 못했다.."), false);
-                }
-            }
-        });
     }
 
     private static boolean onEntityDamage(LivingEntity entity, DamageSource source, float amount) {
@@ -81,7 +55,6 @@ public class RandomEffectMod implements ModInitializer {
             }
         }
 
-        // 후보가 없으면 (모든 효과가 이미 걸린 경우) 무시
         if (candidates.isEmpty()) return true;
 
         RegistryEntry<StatusEffect> randomEntry = candidates.get(RANDOM.nextInt(candidates.size()));
@@ -91,27 +64,16 @@ public class RandomEffectMod implements ModInitializer {
         int amplifier = getWeightedAmplifier();
 
         player.addStatusEffect(new StatusEffectInstance(randomEntry, durationTicks, amplifier, false, true));
-        effectStartTime.putIfAbsent(player.getUuid(), System.currentTimeMillis());
 
         return true;
     }
 
     private static void triggerEasterEgg(ServerPlayerEntity player) {
-        List<RegistryEntry<StatusEffect>> effects = new ArrayList<>();
         for (RegistryEntry<StatusEffect> entry : Registries.STATUS_EFFECT.getIndexedEntries()) {
-            effects.add(entry);
-        }
-
-        for (RegistryEntry<StatusEffect> entry : effects) {
             player.addStatusEffect(new StatusEffectInstance(entry, 90 * 20, 0, false, true));
         }
 
-        player.getServer().getPlayerManager().broadcast(
-            Text.literal("§e" + player.getName().getString() + "§r: §c어쩌다 이 지경까지.."),
-            false
-        );
-
-        effectStartTime.put(player.getUuid(), System.currentTimeMillis());
+        player.sendMessage(Text.literal("§c어쩌다 이 지경까지.."), true);
     }
 
     private static boolean isBlocking(PlayerEntity player) {
