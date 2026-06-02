@@ -21,9 +21,9 @@ jobs:
 
       - name: Gradle Wrapper 다운로드
         run: |
-          curl -L https://services.gradle.org/distributions/gradle-8.10-bin.zip -o gradle.zip
+          curl -L https://services.gradle.org/distributions/gradle-8.6-bin.zip -o gradle.zip
           unzip -q gradle.zip
-          ./gradle-8.10/bin/gradle wrapper --gradle-version 8.10
+          ./gradle-8.6/bin/gradle wrapper --gradle-version 8.6
           chmod +x gradlew
 
       - name: 빌드
