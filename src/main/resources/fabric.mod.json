@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "randomeffect",
+  "version": "1.0.0",
+  "name": "Random Effect on Damage",
+  "description": "데미지를 입으면 랜덤 상태효과를 받는 모드",
+  "authors": ["YourName"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.randomeffect.RandomEffectMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21.10"
+  }
+}
