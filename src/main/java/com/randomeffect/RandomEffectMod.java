@@ -16,9 +16,7 @@ import net.minecraft.util.Hand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class RandomEffectMod implements ModInitializer {
 
@@ -27,6 +25,9 @@ public class RandomEffectMod implements ModInitializer {
     private static final Random RANDOM = new Random();
     private static boolean initialized = false;
 
+    // 이스터에그 발동 시각 기록
+    private static final Map<UUID, Long> easterEggTime = new HashMap<>();
+
     @Override
     public void onInitialize() {
         if (initialized) return;
@@ -34,6 +35,37 @@ public class RandomEffectMod implements ModInitializer {
 
         LOGGER.info("RandomEffect Mod 초기화 완료!");
         ServerLivingEntityEvents.ALLOW_DAMAGE.register(RandomEffectMod::onEntityDamage);
+
+        // 매 틱마다 30초 경과 체크
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
+            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                Long startTime = easterEggTime.get(player.getUuid());
+                if (startTime == null) continue;
+
+                long elapsed = System.currentTimeMillis() - startTime;
+                if (elapsed >= 30_000) {
+                    easterEggTime.remove(player.getUuid());
+
+                    // 걸린 효과 목록 수집
+                    Collection<StatusEffectInstance> activeEffects = player.getStatusEffects();
+                    if (activeEffects.size() <= 1) continue;
+
+                    // 하나만 남기고 나머지 제거
+                    List<RegistryEntry<StatusEffect>> toRemove = new ArrayList<>();
+                    boolean kept = false;
+                    for (StatusEffectInstance instance : activeEffects) {
+                        if (!kept) {
+                            kept = true;
+                            continue;
+                        }
+                        toRemove.add(instance.getEffectType());
+                    }
+                    for (RegistryEntry<StatusEffect> entry : toRemove) {
+                        player.removeStatusEffect(entry);
+                    }
+                }
+            }
+        });
     }
 
     private static boolean onEntityDamage(LivingEntity entity, DamageSource source, float amount) {
@@ -74,6 +106,9 @@ public class RandomEffectMod implements ModInitializer {
         }
 
         player.sendMessage(Text.literal("§c어쩌다 이 지경까지.."), true);
+
+        // 발동 시각 기록
+        easterEggTime.put(player.getUuid(), System.currentTimeMillis());
     }
 
     private static boolean isBlocking(PlayerEntity player) {
